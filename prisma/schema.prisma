@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum RecurrenceFrequency {
+  WEEKLY
+  MONTHLY
+}
+
+model User {
+  id                 String                 @id @default(cuid())
+  name               String
+  email              String                 @unique
+  passwordHash       String
+  recoveryCodeHash   String?
+  authVersion        Int                    @default(0)
+  createdAt          DateTime               @default(now())
+  transactions       Transaction[]
+  goals              Goal[]
+  budget             Budget?
+  lessonProgress     LessonProgress[]
+  recurringRules     RecurringTransaction[]
+}
+
+model LessonProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  lessonKey   String
+  currentStep Int      @default(0)
+  completed   Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonKey])
+  @@index([userId])
+}
+
+model Transaction {
+  id              String                @id @default(cuid())
+  userId          String
+  description     String
+  amount          Decimal
+  type            TransactionType
+  category        String
+  occurredAt      DateTime              @default(now())
+  createdAt       DateTime              @default(now())
+  recurringRuleId String?
+  recurrenceDate  DateTime?
+  isRecurring     Boolean               @default(false)
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recurringRule   RecurringTransaction? @relation(fields: [recurringRuleId], references: [id], onDelete: SetNull)
+
+  @@unique([recurringRuleId, recurrenceDate])
+  @@index([userId, occurredAt])
+}
+
+model RecurringTransaction {
+  id           String              @id @default(cuid())
+  userId       String
+  description  String
+  amount       Decimal
+  type         TransactionType
+  category     String
+  frequency    RecurrenceFrequency
+  dayOfMonth   Int?
+  nextRunOn    DateTime
+  active       Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([userId, active, nextRunOn])
+}
+
+model Goal {
+  id           String    @id @default(cuid())
+  userId       String
+  name         String
+  targetAmount Decimal
+  savedAmount  Decimal   @default(0)
+  targetDate   DateTime?
+  createdAt    DateTime  @default(now())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Budget {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  monthlyLimit Decimal
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
